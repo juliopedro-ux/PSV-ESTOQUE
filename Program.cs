@@ -207,3 +207,187 @@ class GestaoEstoque
         } while (opcao != 0);
     }
 }
+
+
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
+
+class GestaoEstoque
+{
+    private class ItemEstoque
+    {
+        public string Nome { get; set; }
+        public string Unidade { get; set; }
+        public int Quantidade { get; set; }
+        public DateTime Validade { get; set; }
+    }
+
+    private class RegistroSaida
+    {
+        public string Nome { get; set; }
+        public int QuantidadeLiberada { get; set; }
+        public string Unidade { get; set; }
+        public string Responsavel { get; set; }
+        public string Destino { get; set; }
+        public DateTime DataSaida { get; set; }
+        public string Aprovador { get; set; }
+    }
+
+    private List<ItemEstoque> listaEstoque = new();
+    private List<RegistroSaida> historicoSaidas = new();
+
+    // Dicionário de usuários e permissões (exemplo simples)
+    private Dictionary<string, string> usuarios = new()
+    {
+        { "joao", "operador" },
+        { "maria", "supervisor" },
+        { "ana", "gerente" }
+    };
+
+    public GestaoEstoque()
+    {
+        // Estoque inicial (exemplo)
+        listaEstoque.Add(new ItemEstoque { Nome = "Farinha", Unidade = "kg", Quantidade = 50, Validade = DateTime.Now.AddMonths(3) });
+        listaEstoque.Add(new ItemEstoque { Nome = "Açúcar", Unidade = "kg", Quantidade = 30, Validade = DateTime.Now.AddMonths(2) });
+        listaEstoque.Add(new ItemEstoque { Nome = "Leite", Unidade = "L", Quantidade = 20, Validade = DateTime.Now.AddDays(15) });
+    }
+
+    public void LiberarInsumo(string nome, int quantidade, string destino, string responsavel)
+    {
+        // Verifica se o usuário existe
+        if (!usuarios.ContainsKey(responsavel))
+        {
+            Console.WriteLine($"Usuário '{responsavel}' não encontrado no sistema.");
+            return;
+        }
+
+        string cargo = usuarios[responsavel];
+        var item = listaEstoque.FirstOrDefault(i => i.Nome.Equals(nome, StringComparison.OrdinalIgnoreCase));
+
+        if (item == null)
+        {
+            Console.WriteLine($"Insumo '{nome}' não encontrado no estoque.");
+            return;
+        }
+
+        if (quantidade <= 0)
+        {
+            Console.WriteLine("A quantidade liberada deve ser maior que zero.");
+            return;
+        }
+
+        if (item.Quantidade < quantidade)
+        {
+            Console.WriteLine($"Quantidade insuficiente de '{nome}' no estoque. Disponível: {item.Quantidade} {item.Unidade}.");
+            return;
+        }
+
+        // Controle de autorização
+        string aprovador = "";
+        if (cargo == "operador")
+        {
+            Console.Write("Operador não possui permissão direta. Informe o nome do aprovador: ");
+            aprovador = Console.ReadLine().Trim();
+
+            if (!usuarios.ContainsKey(aprovador) || usuarios[aprovador] == "operador")
+            {
+                Console.WriteLine("Aprovador inválido ou sem permissão.");
+                return;
+            }
+        }
+
+        // Liberação confirmada
+        item.Quantidade -= quantidade;
+
+        historicoSaidas.Add(new RegistroSaida
+        {
+            Nome = nome,
+            QuantidadeLiberada = quantidade,
+            Unidade = item.Unidade,
+            Responsavel = responsavel,
+            Destino = destino,
+            DataSaida = DateTime.Now,
+            Aprovador = aprovador
+        });
+
+        Console.WriteLine($"\nInsumo '{nome}' liberado com sucesso!");
+        Console.WriteLine($"Quantidade: {quantidade} {item.Unidade} | Destino: {destino} | Responsável: {responsavel}");
+        if (!string.IsNullOrEmpty(aprovador))
+            Console.WriteLine($"Aprovado por: {aprovador}");
+    }
+
+    public void MostrarHistoricoSaidas()
+    {
+        Console.WriteLine("\n=== HISTÓRICO DE SAÍDAS ===");
+        if (historicoSaidas.Count == 0)
+        {
+            Console.WriteLine("Nenhuma liberação registrada.");
+            return;
+        }
+
+        foreach (var r in historicoSaidas)
+        {
+            Console.WriteLine($"{r.DataSaida:dd/MM/yyyy HH:mm} - {r.Nome} ({r.QuantidadeLiberada} {r.Unidade}) " +
+                              $"| Destino: {r.Destino} | Responsável: {r.Responsavel}" +
+                              (string.IsNullOrEmpty(r.Aprovador) ? "" : $" | Aprovador: {r.Aprovador}"));
+        }
+    }
+
+    static void Main()
+    {
+        var sistema = new GestaoEstoque();
+        int opcao;
+
+        do
+        {
+            Console.WriteLine("\n===================================");
+            Console.WriteLine("  PADARIA SÃO VICENTE - LIBERAÇÃO DE INSUMOS");
+            Console.WriteLine("===================================");
+            Console.WriteLine("1. Liberar insumo");
+            Console.WriteLine("2. Mostrar histórico de saídas");
+            Console.WriteLine("0. Sair");
+            Console.Write("Escolha: ");
+
+            if (!int.TryParse(Console.ReadLine(), out opcao)) opcao = -1;
+
+            switch (opcao)
+            {
+                case 1:
+                    Console.Write("Nome do insumo: ");
+                    var nome = Console.ReadLine().Trim();
+
+                    Console.Write("Quantidade a liberar: ");
+                    int qtd;
+                    if (!int.TryParse(Console.ReadLine(), out qtd))
+                    {
+                        Console.WriteLine("Valor inválido.");
+                        break;
+                    }
+
+                    Console.Write("Destino (ex: produção, venda, descarte): ");
+                    var destino = Console.ReadLine().Trim();
+
+                    Console.Write("Responsável pela liberação: ");
+                    var responsavel = Console.ReadLine().Trim();
+
+                    sistema.LiberarInsumo(nome, qtd, destino, responsavel);
+                    break;
+
+                case 2:
+                    sistema.MostrarHistoricoSaidas();
+                    break;
+
+                case 0:
+                    Console.WriteLine("Encerrando o sistema...");
+                    break;
+
+                default:
+                    Console.WriteLine("Opção inválida.");
+                    break;
+            }
+
+        } while (opcao != 0);
+    }
+}
