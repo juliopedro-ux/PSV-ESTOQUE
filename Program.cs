@@ -207,3 +207,232 @@ class GestaoEstoque
         } while (opcao != 0);
     }
 }
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+class GestaoArmazenamento
+{
+    private class ItemEstoque
+    {
+        public string Nome { get; set; }
+        public string Unidade { get; set; }
+        public int Quantidade { get; set; }
+        public string Localizacao { get; set; } // ex: "Prateleira A", "Câmara Fria"
+    }
+
+    private class RegistroAuditoria
+    {
+        public DateTime DataHora { get; set; }
+        public string Usuario { get; set; }
+        public string Operacao { get; set; } // Inserção, Alteração, Remoção, etc.
+        public string Item { get; set; }
+        public string ValorAnterior { get; set; }
+        public string ValorNovo { get; set; }
+    }
+
+    private List<ItemEstoque> listaEstoque = new();
+    private List<RegistroAuditoria> logsAuditoria = new();
+
+    // Controle de usuários e permissões básicas
+    private Dictionary<string, string> usuarios = new()
+    {
+        { "joao", "operador" },
+        { "maria", "supervisor" },
+        { "ana", "gerente" }
+    };
+
+    // --- Função para registrar qualquer operação no log ---
+    private void RegistrarAuditoria(string usuario, string operacao, string item, string valorAntigo, string valorNovo)
+    {
+        logsAuditoria.Add(new RegistroAuditoria
+        {
+            DataHora = DateTime.Now,
+            Usuario = usuario,
+            Operacao = operacao,
+            Item = item,
+            ValorAnterior = valorAntigo,
+            ValorNovo = valorNovo
+        });
+    }
+
+    // --- Função para armazenar (ou atualizar) um insumo ---
+    public void ArmazenarInsumo(string nome, int quantidade, string unidade, string localizacao, string usuario)
+    {
+        if (!usuarios.ContainsKey(usuario))
+        {
+            Console.WriteLine("Usuário não autorizado.");
+            return;
+        }
+
+        var existente = listaEstoque.FirstOrDefault(i => i.Nome.Equals(nome, StringComparison.OrdinalIgnoreCase));
+
+        if (existente != null)
+        {
+            // Atualiza o item existente e registra log da alteração
+            string valorAntigo = $"{existente.Quantidade} {existente.Unidade} em {existente.Localizacao}";
+            existente.Quantidade += quantidade;
+            existente.Localizacao = localizacao;
+            existente.Unidade = unidade;
+
+            RegistrarAuditoria(usuario, "ATUALIZAÇÃO DE ESTOQUE", nome, valorAntigo, $"{existente.Quantidade} {existente.Unidade} em {existente.Localizacao}");
+            Console.WriteLine($"Insumo '{nome}' atualizado. Novo total: {existente.Quantidade} {existente.Unidade}.");
+        }
+        else
+        {
+            // Cria novo registro de item e registra auditoria
+            listaEstoque.Add(new ItemEstoque
+            {
+                Nome = nome,
+                Quantidade = quantidade,
+                Unidade = unidade,
+                Localizacao = localizacao
+            });
+
+            RegistrarAuditoria(usuario, "ARMAZENAMENTO NOVO", nome, "N/A", $"{quantidade} {unidade} em {localizacao}");
+            Console.WriteLine($"Insumo '{nome}' armazenado com sucesso ({quantidade} {unidade} em {localizacao}).");
+        }
+    }
+
+    // --- Função para alterar quantidade manualmente (com log obrigatório) ---
+    public void AlterarQuantidade(string nome, int novaQuantidade, string usuario)
+    {
+        if (!usuarios.ContainsKey(usuario))
+        {
+            Console.WriteLine("Usuário não autorizado.");
+            return;
+        }
+
+        var item = listaEstoque.FirstOrDefault(i => i.Nome.Equals(nome, StringComparison.OrdinalIgnoreCase));
+        if (item == null)
+        {
+            Console.WriteLine("Item não encontrado no estoque.");
+            return;
+        }
+
+        string valorAntigo = $"{item.Quantidade} {item.Unidade}";
+        item.Quantidade = novaQuantidade;
+
+        RegistrarAuditoria(usuario, "ALTERAÇÃO MANUAL DE QUANTIDADE", nome, valorAntigo, $"{item.Quantidade} {item.Unidade}");
+        Console.WriteLine($"Quantidade de '{nome}' atualizada para {item.Quantidade} {item.Unidade}.");
+    }
+
+    // --- Exibir Estoque Atual ---
+    public void MostrarEstoque()
+    {
+        Console.WriteLine("\n=== ESTOQUE ATUAL ===");
+        if (listaEstoque.Count == 0)
+        {
+            Console.WriteLine("Nenhum insumo armazenado.");
+            return;
+        }
+
+        foreach (var item in listaEstoque)
+        {
+            Console.WriteLine($"{item.Nome}: {item.Quantidade} {item.Unidade} | Localização: {item.Localizacao}");
+        }
+    }
+
+    // --- Exibir Log de Auditoria ---
+    public void MostrarAuditoria()
+    {
+        Console.WriteLine("\n=== LOG DE AUDITORIA ===");
+        if (logsAuditoria.Count == 0)
+        {
+            Console.WriteLine("Nenhuma operação registrada ainda.");
+            return;
+        }
+
+        foreach (var log in logsAuditoria)
+        {
+            Console.WriteLine($"{log.DataHora:dd/MM/yyyy HH:mm:ss} | Usuário: {log.Usuario} | Operação: {log.Operacao}");
+            Console.WriteLine($"Item: {log.Item}");
+            Console.WriteLine($"De: {log.ValorAnterior} -> Para: {log.ValorNovo}\n");
+        }
+    }
+
+    // --- Programa Principal ---
+    static void Main()
+    {
+        var sistema = new GestaoArmazenamento();
+        int opcao;
+
+        do
+        {
+            Console.WriteLine("\n===================================");
+            Console.WriteLine(" PADARIA SÃO VICENTE - ARMAZENAMENTO DE INSUMOS ");
+            Console.WriteLine("===================================");
+            Console.WriteLine("1. Armazenar / Atualizar insumo");
+            Console.WriteLine("2. Alterar quantidade manualmente");
+            Console.WriteLine("3. Mostrar estoque atual");
+            Console.WriteLine("4. Mostrar log de auditoria");
+            Console.WriteLine("0. Sair");
+            Console.Write("Escolha: ");
+
+            if (!int.TryParse(Console.ReadLine(), out opcao)) opcao = -1;
+
+            switch (opcao)
+            {
+                case 1:
+                    Console.Write("Nome do insumo: ");
+                    var nome = Console.ReadLine().Trim();
+
+                    Console.Write("Quantidade: ");
+                    int qtd;
+                    if (!int.TryParse(Console.ReadLine(), out qtd) || qtd <= 0)
+                    {
+                        Console.WriteLine("Quantidade inválida.");
+                        break;
+                    }
+
+                    Console.Write("Unidade (kg, L, g, etc.): ");
+                    var unidade = Console.ReadLine().Trim();
+
+                    Console.Write("Localização física: ");
+                    var local = Console.ReadLine().Trim();
+
+                    Console.Write("Usuário responsável: ");
+                    var usuario = Console.ReadLine().Trim();
+
+                    sistema.ArmazenarInsumo(nome, qtd, unidade, local, usuario);
+                    break;
+
+                case 2:
+                    Console.Write("Nome do insumo: ");
+                    nome = Console.ReadLine().Trim();
+
+                    Console.Write("Nova quantidade: ");
+                    int novaQtd;
+                    if (!int.TryParse(Console.ReadLine(), out novaQtd))
+                    {
+                        Console.WriteLine("Valor inválido.");
+                        break;
+                    }
+
+                    Console.Write("Usuário responsável: ");
+                    usuario = Console.ReadLine().Trim();
+
+                    sistema.AlterarQuantidade(nome, novaQtd, usuario);
+                    break;
+
+                case 3:
+                    sistema.MostrarEstoque();
+                    break;
+
+                case 4:
+                    sistema.MostrarAuditoria();
+                    break;
+
+                case 0:
+                    Console.WriteLine("Encerrando o sistema...");
+                    break;
+
+                default:
+                    Console.WriteLine("Opção inválida.");
+                    break;
+            }
+
+        } while (opcao != 0);
+    }
+}
